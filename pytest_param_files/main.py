@@ -227,12 +227,16 @@ class DotFormat(FormatAbstract):
         if rstrip_lines:
             actual = "\n".join(line.rstrip() for line in actual.splitlines())
         text = []
-        for data in self.read():
+        for index, data in enumerate(self.read()):
             text.append(f"[{data.title}] {data.description}\n")
             text.append(".\n")
             text.append(data.content)
             text.append(".\n")
-            text.append(actual)
+            if index == data.index:
+                # TODO what if actual has '.' line in the middle?
+                text.append(actual)
+            else:
+                text.append(data.expected)
             text.append("\n.\n\n")
         self.path.write_text("".join(text), encoding=self.encoding)
 
