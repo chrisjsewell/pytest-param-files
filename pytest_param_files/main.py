@@ -208,8 +208,10 @@ class DotFormat(FormatAbstract):
             actual = actual.rstrip()
             expected = expected.rstrip()
         if rstrip_lines:
-            actual = "\n".join(line.rstrip() for line in actual.splitlines())
-            expected = "\n".join(line.rstrip() for line in expected.splitlines())
+            actual = "\n".join(line.rstrip() for line in actual.splitlines()).rstrip()
+            expected = "\n".join(
+                line.rstrip() for line in expected.splitlines()
+            ).rstrip()
 
         if actual == expected:
             return None
@@ -225,7 +227,7 @@ class DotFormat(FormatAbstract):
         if rstrip:
             actual = actual.rstrip()
         if rstrip_lines:
-            actual = "\n".join(line.rstrip() for line in actual.splitlines())
+            actual = "\n".join(line.rstrip() for line in actual.splitlines()).rstrip()
         text = []
         for index, current in enumerate(self.read()):
             text.append(f"[{current.title}] {current.description}\n")
@@ -234,10 +236,16 @@ class DotFormat(FormatAbstract):
             text.append(".\n")
             if index == data.index:
                 # TODO what if actual has '.' line in the middle?
-                text.append(actual)
+                expected = actual
             else:
-                text.append(current.expected)
-            text.append("\n.\n\n")
+                expected = current.expected
+            text.append(expected)
+            if not expected.endswith("\n"):
+                text.append("\n")
+            text.append(".\n")
+            text.append("\n")
+        if text:
+            text = text[:-1]
         self.path.write_text("".join(text), encoding=self.encoding)
 
     def _diff(self, actual: str, expected: str, data: ParamTestData) -> str:
