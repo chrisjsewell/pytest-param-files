@@ -165,10 +165,11 @@ class DotFormat(FormatAbstract):
                 actual.splitlines(keepends=True),
                 fromfile=f"{self.path}:{data.line}",
                 tofile="(actual)",
+                lineterm="",
             )
         )
         if len(diff_lines) <= 500:
-            return "Actual does not match expected\n" + "".join(diff_lines)
+            return "Actual does not match expected\n" + "\n".join(diff_lines)
         else:
             return (
                 f"Diff too big to show ({len(diff_lines)}):" f"{self.path}:{data.line}"

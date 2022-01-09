@@ -65,7 +65,8 @@ E       AssertionError: Actual does not match expected
 E       --- /path/to/test_file.txt:8
 E       +++ (actual)
 E       @@ -1 +1 @@
-E       -content+other
+E       -content
+E       +other
 ```
 
 ## Installation
