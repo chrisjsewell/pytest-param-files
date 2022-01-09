@@ -1,12 +1,9 @@
-"""Basic tests for the project."""
 from pathlib import Path
 
 import pytest
 
-from pytest_param_files import with_parameters
 
-
-@with_parameters(Path(__file__).parent / "fixtures" / "basic.txt", fmt="dot")
+@pytest.mark.param_file(Path(__file__).parent / "fixtures" / "basic.txt", fmt="dot")
 def test_basic_dot(file_params):
     """Basic parsing test."""
     assert isinstance(file_params.line, int)

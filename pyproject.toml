@@ -24,6 +24,9 @@ dependencies = ["pytest"]
 [project.urls]
 Home = "https://github.com/chrisjsewell/pytest-param-files"
 
+[project.entry-points."pytest11"]
+pytest_param_files = "pytest_param_files.main"
+
 [project.optional-dependencies]
 develop = ["black"]
 

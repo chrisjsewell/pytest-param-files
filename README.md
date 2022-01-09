@@ -2,7 +2,7 @@
 
 [![PyPI][pypi-badge]][pypi-link]
 
-A small package to create pytest parametrize decorators from external files.
+A small package to generate parametrized [pytests](https://docs.pytest.org) from external files.
 
 Simply create a text file with the following (`dot`) format:
 
@@ -22,7 +22,7 @@ expected output content
 ,
 ```
 
-Then, use the `with_parameters` decorator to create a parametrized test:
+Then, use the `param_file` pytest marker to create a parametrized test:
 
 ```python
 from pathlib import Path
@@ -32,7 +32,7 @@ import my_function
 
 PATH = Path(__file__).parent.joinpath("test_file.txt")
 
-@with_parameters(PATH, fmt="dot")
+@pytest.mark.param_file(PATH, fmt="dot")
 def test_function(file_params):
     assert my_function(file_params.content) == file_params.expected
 ```
@@ -49,7 +49,7 @@ test_file.py::test_function[8-name2] FAILED
 Alternatively use the `assert_expected` method, which will can handle more rich assertion features:
 
 ```python
-@with_parameters(PATH, fmt="dot")
+@pytest.mark.param_file(PATH, fmt="dot")
 def test_function(file_params):
     actual = my_function(file_params.content)
     assert file_params.assert_expected(actual, rstrip=True)
@@ -83,11 +83,13 @@ or install locally (for development):
 $ pip install -e .
 ```
 
-## Other formats
-
-TODO ...
-
 ## Regenerating expected output on failures
+
+**EXPERIMENTAL**
+
+Running pytest with the `--regen-file-failure` option will regenerate the parameter file with actual output, if any test fails.
+
+## Other formats
 
 TODO ...
 
