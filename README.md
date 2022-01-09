@@ -26,7 +26,7 @@ Then, use the `param_file` pytest marker to create a parametrized test:
 
 ```python
 from pathlib import Path
-from pytest_param_files import with_parameters
+import pytest
 
 import my_function
 
