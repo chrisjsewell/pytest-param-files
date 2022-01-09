@@ -1,18 +1,23 @@
 """Basic tests for the project."""
 from pathlib import Path
 
+import pytest
+
 from pytest_param_files import with_parameters
 
 
-@with_parameters(Path(__file__).parent / "fixtures" / "basic.txt")
-def test_basic(line, title, description, content, expected):
+@with_parameters(Path(__file__).parent / "fixtures" / "basic.txt", fmt="dot")
+def test_basic_dot(file_params):
     """Basic parsing test."""
-    assert isinstance(line, int)
-    assert isinstance(title, str)
-    assert isinstance(description, str)
-    assert isinstance(content, str)
-    assert isinstance(expected, str)
-    assert title.startswith("name")
-    assert description == "description"
-    assert content.rstrip() == "Something"
-    assert expected.rstrip() == "Other"
+    assert isinstance(file_params.line, int)
+    assert isinstance(file_params.title, str)
+    assert isinstance(file_params.description, str)
+    assert isinstance(file_params.content, str)
+    assert isinstance(file_params.expected, str)
+    assert file_params.title.startswith("name")
+    assert file_params.description == "description"
+    assert file_params.content.rstrip() == "Something"
+    assert file_params.expected.rstrip() == "Other"
+    file_params.assert_expected("Other", rstrip=True)
+    with pytest.raises(AssertionError, match="basic.txt"):
+        file_params.assert_expected("Otherx", rstrip=True)

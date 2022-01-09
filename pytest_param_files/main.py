@@ -1,19 +1,52 @@
 """Main module"""
+from dataclasses import dataclass
+import difflib
 from pathlib import Path
 import re
-from typing import List, Tuple, Union
+from typing import Any, List, Tuple, Union
 
 import pytest
 
 
+@dataclass
+class ParamTestData:
+    """Data class for a single test."""
+
+    line: int
+    """The line number in the source file."""
+    title: str
+    """The title of the test."""
+    description: str
+    """The description of the test."""
+    content: Any
+    """The input content of the test."""
+    expected: Any
+    """The expected result of the test."""
+    fmt: "FormatAbstract"
+    """The format of the source file."""
+
+    def assert_expected(self, actual: Any, **kwargs: Any) -> None:
+        """Assert the actual result of the test.
+
+        :param actual: The actual result of the test.
+        :param kwargs: Additional keyword arguments to parse to the format.
+        """
+        __tracebackhide__ = True
+        self.fmt.assert_expected(actual, self, **kwargs)
+
+
 def with_parameters(
-    path: Union[str, Path], fmt: str = "dot", encoding="utf8"
+    path: Union[str, Path],
+    fmt: str = "dot",
+    encoding="utf8",
+    fixture_name: str = "file_params",
 ) -> callable:
     """Return a pytest parametrize decorator for a fixture file.
 
     :param path: Path to the fixture file.
     :param format: Format of the fixture file.
     :param encoding: Encoding of the fixture file.
+    :param fixture_name: Name of the fixture parameter.
     """
     path = Path(path)
     # check if the file exists
@@ -23,54 +56,120 @@ def with_parameters(
     # select read format
     if fmt != "dot":
         raise NotImplementedError("Currently only dot format is supported.")
-    read_function = read_dot_file
+    fmt_inst = DotFormat(path, encoding)
 
     # read fixture file
-    tests = read_function(path, encoding)
+    tests = fmt_inst.read()
+
+    # create the objects to return
+    file_params = [ParamTestData(*test, fmt=fmt_inst) for test in tests]
+
+    # create pytest parametrize ids
+    ids = [f"{p.line}-{p.title}" for p in file_params]
 
     # return the decorator
     return pytest.mark.parametrize(
-        "line,title,description,content,expected",
-        tests,
-        ids=[f"{i[0]}-{i[1]}" for i in tests],
+        fixture_name,
+        file_params,
+        ids=ids,
     )
 
 
 _TITLE_RE = re.compile(r"^\s*\[(?P<title>\S+)\]\s*(?P<description>.*)$")
 
 
-def read_dot_file(path: Path, encoding: str) -> List[Tuple[int, str, str, str, str]]:
-    """Read a dot file and return a list of tuples.
+class FormatAbstract:
+    """Abstract class for a format."""
 
-    :param path: Path to the dot file.
-    :param encoding: Encoding of the dot file.
+    def __init__(self, path: Path, encoding: str = "utf8") -> None:
+        """Initialize the format.
 
-    :return: List of tuples (line, title, description, content, expected).
-    """
-    text = path.read_text(encoding=encoding)
-    tests = []
-    section = 0
-    last_pos = 0
-    lines = text.splitlines(keepends=True)
-    for i in range(len(lines)):
-        if lines[i].rstrip() == ".":
-            if section == 0:
-                first_line = lines[i - 1].strip()
-                match = _TITLE_RE.match(first_line)
-                if match:
-                    title = match.group("title")
-                    description = match.group("description")
-                else:
-                    title = first_line
-                    description = ""
-                tests.append([i, title, description])
-                section = 1
-            elif section == 1:
-                tests[-1].append("".join(lines[last_pos + 1 : i]))
-                section = 2
-            elif section == 2:
-                tests[-1].append("".join(lines[last_pos + 1 : i]))
-                section = 0
+        :param path: Path to the fixture file.
+        :param encoding: Encoding of the fixture file.
+        """
+        self.path = path
+        self.encoding = encoding
 
-            last_pos = i
-    return tests
+    def read(self) -> List[Tuple[int, str, str, str, str]]:
+        """Read the fixture file and return a list of test data.
+
+        :return: List of test data.
+        """
+        raise NotImplementedError()
+
+    def assert_expected(self, actual: Any, data: ParamTestData, **kwargs) -> None:
+        """Assert the actual result matches the expected.
+
+        :param actual: Actual result.
+        """
+        raise NotImplementedError()
+
+
+class DotFormat(FormatAbstract):
+    """Dot file format."""
+
+    name = "dot"
+
+    def read(self) -> List[Tuple[int, str, str, str, str]]:
+        text = self.path.read_text(encoding=self.encoding)
+        tests = []
+        section = 0
+        last_pos = 0
+        lines = text.splitlines(keepends=True)
+        for i in range(len(lines)):
+            if lines[i].rstrip() == ".":
+                if section == 0:
+                    first_line = lines[i - 1].strip()
+                    match = _TITLE_RE.match(first_line)
+                    if match:
+                        title = match.group("title")
+                        description = match.group("description")
+                    else:
+                        title = first_line
+                        description = ""
+                    tests.append([i, title, description])
+                    section = 1
+                elif section == 1:
+                    tests[-1].append("".join(lines[last_pos + 1 : i]))
+                    section = 2
+                elif section == 2:
+                    tests[-1].append("".join(lines[last_pos + 1 : i]))
+                    section = 0
+
+                last_pos = i
+        return tests
+
+    def assert_expected(
+        self, actual: str, data: ParamTestData, rstrip: bool = False
+    ) -> None:
+        """Assert the actual result of the test.
+
+        :param rstrip: Whether to apply `str.rstrip` to actual and expected before comparing.
+        """
+        __tracebackhide__ = True
+        expected = data.expected
+        if rstrip:
+            actual = actual.rstrip()
+            expected = expected.rstrip()
+
+        try:
+            assert actual == expected
+        except AssertionError:
+            raise AssertionError(self._diff(actual, expected, data))
+
+    def _diff(self, actual: str, expected: str, data: ParamTestData) -> str:
+        """Return a diff string between actual and expected."""
+        diff_lines = list(
+            difflib.unified_diff(
+                expected.splitlines(keepends=True),
+                actual.splitlines(keepends=True),
+                fromfile=f"{self.path}:{data.line}",
+                tofile="(actual)",
+            )
+        )
+        if len(diff_lines) <= 500:
+            return "Actual does not match expected\n" + "".join(diff_lines)
+        else:
+            return (
+                f"Diff too big to show ({len(diff_lines)}):" f"{self.path}:{data.line}"
+            )
