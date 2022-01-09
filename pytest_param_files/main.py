@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import difflib
 from pathlib import Path
 import re
-from typing import Any, List, Tuple, Union
+from typing import Any, List, Tuple, Union, cast
 
 import pytest
 
@@ -140,17 +140,26 @@ class DotFormat(FormatAbstract):
         return tests
 
     def assert_expected(
-        self, actual: str, data: ParamTestData, rstrip: bool = False
+        self,
+        actual: str,
+        data: ParamTestData,
+        rstrip: bool = False,
+        rstrip_lines: bool = False,
     ) -> None:
         """Assert the actual result of the test.
 
         :param rstrip: Whether to apply `str.rstrip` to actual and expected before comparing.
+        :param rstrip_lines: Whether to apply `str.rstrip`
+            to each line of actual and expected before comparing.
         """
         __tracebackhide__ = True
-        expected = data.expected
+        expected = cast(str, data.expected)
         if rstrip:
             actual = actual.rstrip()
             expected = expected.rstrip()
+        if rstrip_lines:
+            actual = "\n".join(line.rstrip() for line in actual.splitlines())
+            expected = "\n".join(line.rstrip() for line in expected.splitlines())
 
         try:
             assert actual == expected
