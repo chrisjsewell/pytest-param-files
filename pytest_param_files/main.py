@@ -48,7 +48,7 @@ class ParamTestData:
     """The line number in the source file."""
     title: str
     """The title of the test."""
-    description: str
+    description: Optional[str]
     """The description of the test."""
     content: Any
     """The input content of the test."""
@@ -175,7 +175,7 @@ class DotFormat(FormatAbstract):
                         description = match.group("description")
                     else:
                         title = first_line
-                        description = ""
+                        description = None
                     tests.append([i, title, description])
                     section = 1
                 elif section == 1:
@@ -230,7 +230,10 @@ class DotFormat(FormatAbstract):
             actual = "\n".join(line.rstrip() for line in actual.splitlines()).rstrip()
         text = []
         for index, current in enumerate(self.read()):
-            text.append(f"[{current.title}] {current.description}\n")
+            if current.description is not None:
+                text.append(f"[{current.title}] {current.description}\n")
+            else:
+                text.append(f"{current.title}\n")
             text.append(".\n")
             text.append(current.content)
             text.append(".\n")
