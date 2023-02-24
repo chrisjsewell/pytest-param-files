@@ -263,8 +263,12 @@ class DotFormat(FormatAbstract):
             )
         )
         if len(diff_lines) <= 500:
-            return "Actual does not match expected\n" + "\n".join(diff_lines)
+            return "actual != expected (use --regen-file-failure)\n" + "".join(
+                diff_lines
+            )
         else:
             return (
-                f"Diff too big to show ({len(diff_lines)}):" f"{self.path}:{data.line}"
+                "actual != expected (use --regen-file-failure)\n"
+                f"diff too big to show ({len(diff_lines)}): "
+                f"{self.path}:{data.line}"
             )
