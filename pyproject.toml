@@ -11,15 +11,15 @@ license = {file = "LICENSE"}
 classifiers = [
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.7",
     "Programming Language :: Python :: 3.8",
     "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Framework :: Pytest"
-
 ]
 keywords = ["pytest", "parameterized"]
-requires-python = ">=3.7"
-dependencies = ["pytest"]
+requires-python = ">=3.8"
+dependencies = ["pytest", "pyyaml"]
 
 [project.urls]
 Home = "https://github.com/chrisjsewell/pytest-param-files"
@@ -28,7 +28,7 @@ Home = "https://github.com/chrisjsewell/pytest-param-files"
 pytest_param_files = "pytest_param_files.main"
 
 [project.optional-dependencies]
-develop = ["black"]
+codecov = ["pytest-cov"]
 
 [tool.isort]
 profile = "black"
