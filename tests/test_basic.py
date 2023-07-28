@@ -31,7 +31,7 @@ def test_basic_yaml(file_params):
     assert file_params.title.startswith("name")
     assert file_params.description == "description"
     assert file_params.content.rstrip() == "Something"
-    # assert file_params.expected.rstrip() == "Other"
+    assert file_params.expected.rstrip() == "Other"
     file_params.assert_expected("Other", rstrip=True)
-    # with pytest.raises(AssertionError, match="basic.yaml"):
-    #     file_params.assert_expected("Otherx", rstrip=True)
+    with pytest.raises(AssertionError, match="basic.yaml"):
+        file_params.assert_expected("Otherx", rstrip=True)

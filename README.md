@@ -25,14 +25,14 @@ expected output content
 
 `yaml` format:
 ```yaml
-- title: name1
-  description: description
+name1:
+  description: optional description
   input: |-
     input content
   expected: |-
     expected output content
-- title: name2
-  description: description
+name2:
+  description: optional description
   input: |-
     input content
   expected: |-

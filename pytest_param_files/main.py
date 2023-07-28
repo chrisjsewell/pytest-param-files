@@ -265,23 +265,25 @@ class YamlFormat(FormatAbstract):
         """
         text = self.path.read_text(encoding=self.encoding)
         node = yaml.compose(text, yaml.SafeLoader)
-        if not isinstance(node, yaml.SequenceNode):
+        if not isinstance(node, yaml.MappingNode):
             raise TypeError(f"Expected sequence, got {type(node)}")
-        data = yaml.safe_load(text)
+        data: dict = yaml.safe_load(text)
         assert len(node.value) == len(data), "YAML node count mismatch"
-        item_node: yaml.Node
-        for index, (item_node, item) in enumerate(zip(node.value, data)):
-            line = item_node.start_mark.line + 1
+        title_node: yaml.Node
+        for index, ((title_node, _), (title, item)) in enumerate(
+            zip(node.value, data.items())
+        ):
+            line = title_node.start_mark.line + 1
             if not isinstance(item, dict):
                 raise TypeError(
-                    f"Expected mapping at line {line}, got {type(item_node)}"
+                    f"Expected mapping value at line {line}, got {type(item)}"
                 )
-            for key in ("title", "content", "expected"):
+            for key in ("content", "expected"):
                 if key not in item:
                     raise KeyError(f"Missing '{key}' key for item at line {line}")
             yield ParamTestData(
                 line,
-                item["title"],
+                title,
                 item.get("description"),
                 item["content"],
                 item["expected"],
@@ -326,7 +328,7 @@ class YamlFormat(FormatAbstract):
         # TODO ideally here we would maintain comments and formatting
         # perhaps using ruamel.yaml, although that is a pain
         new = yaml.safe_load(self.path.read_text(encoding=self.encoding))
-        new[data.index]["expected"] = actual
+        new[data.title]["expected"] = actual
         text = yaml.dump(
             new, Dumper=CustomDumper, default_flow_style=False, sort_keys=False
         )
