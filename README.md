@@ -4,22 +4,39 @@
 
 A small package to generate parametrized [pytests](https://docs.pytest.org) from external files.
 
-Simply create a text file with the following (`dot`) format:
+Simply create a text file with an available format:
 
+`dot` format (default):
 ```
 [name1] description
 .
 input content
 .
 expected output content
-,
+.
 
 [name2] description
 .
 input content
 .
 expected output content
-,
+.
+```
+
+`yaml` format:
+```yaml
+- title: name1
+  description: description
+  input: |-
+    input content
+  expected: |-
+    expected output content
+- title: name2
+  description: description
+  input: |-
+    input content
+  expected: |-
+    expected output content
 ```
 
 Then, use the `param_file` pytest marker to create a parametrized test:
@@ -85,9 +102,9 @@ $ pip install -e .
 
 ## Regenerating expected output on failures
 
-**EXPERIMENTAL**
-
 Running pytest with the `--regen-file-failure` option will regenerate the parameter file with actual output, if any test fails.
+
+Note, currently regeneration of YAML files may not provide the same formatting as the original file, and will not preserve comments.
 
 ## Other formats
 

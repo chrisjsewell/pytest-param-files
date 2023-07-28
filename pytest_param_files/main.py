@@ -1,9 +1,14 @@
 """Main module"""
+from __future__ import annotations
+
 from dataclasses import dataclass
 import difflib
 from pathlib import Path
 import re
-from typing import TYPE_CHECKING, Any, Iterator, List, Optional, Tuple, Union, cast
+import traceback
+from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Literal, cast
+
+import yaml
 
 if TYPE_CHECKING:
     from _pytest.python import Metafunc
@@ -30,7 +35,7 @@ def pytest_configure(config):
     )
 
 
-def pytest_generate_tests(metafunc: "Metafunc") -> None:
+def pytest_generate_tests(metafunc: Metafunc) -> None:
     """Generate tests for a pytest param_file decorator."""
     for marker in metafunc.definition.iter_markers(name="param_file"):
         param_files_regen = metafunc.config.getoption("param_files_regen")
@@ -48,7 +53,7 @@ class ParamTestData:
     """The line number in the source file."""
     title: str
     """The title of the test."""
-    description: Optional[str]
+    description: str | None
     """The description of the test."""
     content: Any
     """The input content of the test."""
@@ -56,7 +61,7 @@ class ParamTestData:
     """The expected result of the test."""
     index: int
     """The index of the test in the file."""
-    fmt: "FormatAbstract"
+    fmt: FormatAbstract
     """The format of the source file."""
 
     def assert_expected(self, actual: Any, **kwargs: Any) -> None:
@@ -73,20 +78,21 @@ class ParamTestData:
             # TODO how to cache regeneration until all test parameters are run?
             try:
                 self.fmt.regen_file(self, actual, **kwargs)
-            except Exception as exc:
-                error += f"\nRegeneration failed: {exc}"
+            except Exception:
+                error += f"\nRegeneration failed:\n{traceback.format_exc()}"
+
             else:
                 error += f"\nREGENERATED FILE: {self.fmt.path}"
         raise AssertionError(error)
 
 
 def create_parameters(
-    path: Union[str, Path],
-    fmt: str = "dot",
+    path: str | Path,
+    fmt: Literal["dot", "yaml"] = "dot",
     encoding="utf8",
     fixture_name: str = "file_params",
     regen_on_failure: bool = False,
-) -> Tuple[str, List[ParamTestData], List[str]]:
+) -> tuple[str, list[ParamTestData], list[str]]:
     """Return a pytest parametrize decorator for a fixture file.
 
     :param path: Path to the fixture file.
@@ -102,9 +108,12 @@ def create_parameters(
         raise FileNotFoundError(f"File {path} not found.")
 
     # select read format
-    if fmt != "dot":
-        raise NotImplementedError("Currently only dot format is supported.")
-    fmt_inst = DotFormat(path, encoding, regen_on_failure)
+    if fmt == "dot":
+        fmt_inst = DotFormat(path, encoding, regen_on_failure)
+    elif fmt == "yaml":
+        fmt_inst = YamlFormat(path, encoding, regen_on_failure)
+    else:
+        raise NotImplementedError(f"Unknown format {fmt!r}, set to 'dot' or 'yaml'")
 
     # read fixture file
     file_params = list(fmt_inst.read())
@@ -142,22 +151,22 @@ class FormatAbstract:
 
     def assert_expected(
         self, actual: Any, data: ParamTestData, **kwargs: Any
-    ) -> Optional[str]:
+    ) -> str | None:
         """Assert the actual result matches the expected.
 
         :param actual: Actual result.
         """
         raise NotImplementedError()
 
-    def regen_file(data: ParamTestData, actual: Any, **kwargs: Any) -> None:
+    def regen_file(self, data: ParamTestData, actual: Any, **kwargs: Any) -> None:
         """Regenerate the fixture file."""
-        raise NotImplementedError()
+        raise NotImplementedError("not implemented")
 
 
 class DotFormat(FormatAbstract):
     """Dot file format."""
 
-    name = "dot"
+    name: ClassVar[str] = "dot"
 
     def read(self) -> Iterator[ParamTestData]:
         text = self.path.read_text(encoding=self.encoding)
@@ -196,26 +205,18 @@ class DotFormat(FormatAbstract):
         data: ParamTestData,
         rstrip: bool = False,
         rstrip_lines: bool = False,
-    ) -> Optional[str]:
+    ) -> str | None:
         """Assert the actual result of the test.
 
         :param rstrip: Whether to apply `str.rstrip` to actual and expected before comparing.
         :param rstrip_lines: Whether to apply `str.rstrip`
             to each line of actual and expected before comparing.
-        """
-        expected = cast(str, data.expected)
-        if rstrip:
-            actual = actual.rstrip()
-            expected = expected.rstrip()
-        if rstrip_lines:
-            actual = "\n".join(line.rstrip() for line in actual.splitlines()).rstrip()
-            expected = "\n".join(
-                line.rstrip() for line in expected.splitlines()
-            ).rstrip()
 
-        if actual == expected:
-            return None
-        return self._diff(actual, expected, data)
+        :return: An error message if the actual result does not match the expected result.
+        """
+        return assert_expected_strings(
+            actual, cast(str, data.expected), self.path, data.line, rstrip, rstrip_lines
+        )
 
     def regen_file(
         self,
@@ -251,24 +252,148 @@ class DotFormat(FormatAbstract):
             text = text[:-1]
         self.path.write_text("".join(text), encoding=self.encoding)
 
-    def _diff(self, actual: str, expected: str, data: ParamTestData) -> str:
-        """Return a diff string between actual and expected."""
-        diff_lines = list(
-            difflib.unified_diff(
-                expected.splitlines(keepends=True),
-                actual.splitlines(keepends=True),
-                fromfile=f"{self.path}:{data.line}",
-                tofile="(actual)",
-                lineterm="",
+
+class YamlFormat(FormatAbstract):
+    """YAML file format."""
+
+    name: ClassVar[str] = "yaml"
+
+    def read(self) -> Iterator[ParamTestData]:
+        """Read the fixture file and return a list of test data.
+
+        :return: List of test data.
+        """
+        text = self.path.read_text(encoding=self.encoding)
+        node = yaml.compose(text, yaml.SafeLoader)
+        if not isinstance(node, yaml.SequenceNode):
+            raise TypeError(f"Expected sequence, got {type(node)}")
+        data = yaml.safe_load(text)
+        assert len(node.value) == len(data), "YAML node count mismatch"
+        item_node: yaml.Node
+        for index, (item_node, item) in enumerate(zip(node.value, data)):
+            line = item_node.start_mark.line + 1
+            if not isinstance(item, dict):
+                raise TypeError(
+                    f"Expected mapping at line {line}, got {type(item_node)}"
+                )
+            for key in ("title", "content", "expected"):
+                if key not in item:
+                    raise KeyError(f"Missing '{key}' key for item at line {line}")
+            yield ParamTestData(
+                line,
+                item["title"],
+                item.get("description"),
+                item["content"],
+                item["expected"],
+                fmt=self,
+                index=index,
             )
+
+    def assert_expected(
+        self,
+        actual: Any,
+        data: ParamTestData,
+        rstrip: bool = False,
+        rstrip_lines: bool = False,
+    ) -> str | None:
+        """Assert the actual result of the test.
+
+        :param rstrip: Whether to apply `str.rstrip` to actual and expected,
+            before comparing (strings only).
+        :param rstrip_lines: Whether to apply `str.rstrip`
+            to each line of actual and expected before comparing (strings only).
+        """
+        expected = data.expected
+
+        if type(actual) != type(expected):
+            return f"actual type {type(actual)} != expected type {type(expected)}"
+
+        if isinstance(actual, str) and isinstance(expected, str):
+            return assert_expected_strings(
+                actual, expected, self.path, data.line, rstrip, rstrip_lines
+            )
+
+        if actual == expected:
+            return None
+
+        return (
+            f"actual != expected (use --regen-file-failure)\n"
+            f"actual: {actual}\nexpected: {expected}"
         )
-        if len(diff_lines) <= 500:
-            return "actual != expected (use --regen-file-failure)\n" + "".join(
-                diff_lines
-            )
-        else:
-            return (
-                "actual != expected (use --regen-file-failure)\n"
-                f"diff too big to show ({len(diff_lines)}): "
-                f"{self.path}:{data.line}"
-            )
+
+    def regen_file(self, data: ParamTestData, actual: Any, **kwargs: Any) -> None:
+        """Regenerate the fixture file."""
+        # TODO ideally here we would maintain comments and formatting
+        # perhaps using ruamel.yaml, although that is a pain
+        new = yaml.safe_load(self.path.read_text(encoding=self.encoding))
+        new[data.index]["expected"] = actual
+        text = yaml.dump(
+            new, Dumper=CustomDumper, default_flow_style=False, sort_keys=False
+        )
+        self.path.write_text(text, encoding=self.encoding)
+
+
+def assert_expected_strings(
+    actual: str,
+    expected: str,
+    path: Path,
+    line: int,
+    rstrip: bool = False,
+    rstrip_lines: bool = False,
+) -> str | None:
+    """Assert the actual result of the test.
+
+    :param rstrip: Whether to apply `str.rstrip` to actual and expected before comparing.
+    :param rstrip_lines: Whether to apply `str.rstrip`
+        to each line of actual and expected before comparing.
+
+    :return: An error message if the actual result does not match the expected result.
+    """
+    if rstrip:
+        actual = actual.rstrip()
+        expected = expected.rstrip()
+    if rstrip_lines:
+        actual = "\n".join(line.rstrip() for line in actual.splitlines()).rstrip()
+        expected = "\n".join(line.rstrip() for line in expected.splitlines()).rstrip()
+
+    if actual == expected:
+        return None
+    return diff_strings(actual, expected, path, line)
+
+
+def diff_strings(actual: str, expected: str, path: Path, line: int) -> str:
+    """Return a diff string between actual and expected."""
+    diff_lines = list(
+        difflib.unified_diff(
+            (expected + "\n").splitlines(keepends=True),
+            (actual + "\n").splitlines(keepends=True),
+            fromfile=f"{path}:{line}",
+            tofile="(actual)",
+            lineterm="\n",
+        )
+    )
+    if len(diff_lines) <= 500:
+        return "actual != expected (use --regen-file-failure)\n" + "".join(diff_lines)
+    else:
+        return (
+            "actual != expected (use --regen-file-failure)\n"
+            f"diff too big to show ({len(diff_lines)}): "
+            f"{path}:{line}"
+        )
+
+
+class CustomDumper(yaml.SafeDumper):
+    """Custom YAML dumper."""
+
+    def represent_scalar(self, tag, value, style=None):
+        if style is None:
+            # be a bit more clever about the string style,
+            # to get a more readable output
+            if "\n" in value:
+                style = "|"
+            elif len(value) > 80:
+                style = ">"
+        node = yaml.ScalarNode(tag, value, style=style)
+        if self.alias_key is not None:
+            self.represented_objects[self.alias_key] = node
+        return node
