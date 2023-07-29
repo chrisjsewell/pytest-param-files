@@ -382,20 +382,3 @@ def diff_strings(actual: str, expected: str, path: Path, line: int) -> str:
             f"diff too big to show ({len(diff_lines)}): "
             f"{path}:{line}"
         )
-
-
-# class CustomDumper(yaml.SafeDumper):
-#     """Custom YAML dumper."""
-
-#     def represent_scalar(self, tag, value, style=None):
-#         if style is None:
-#             # be a bit more clever about the string style,
-#             # to get a more readable output
-#             if "\n" in value:
-#                 style = "|"
-#             elif len(value) > 80:
-#                 style = ">"
-#         node = yaml.ScalarNode(tag, value, style=style)
-#         if self.alias_key is not None:
-#             self.represented_objects[self.alias_key] = node
-#         return node

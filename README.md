@@ -2,26 +2,10 @@
 
 [![PyPI][pypi-badge]][pypi-link]
 
-A small package to generate parametrized [pytests](https://docs.pytest.org) from external files.
+A [pytest](https://docs.pytest.org) plugin to generate parametrized tests from external files,
+with (optional) automated regeneration of expected output on failures.
 
 Simply create a text file with an available format:
-
-`dot` format (default):
-```
-[name1] description
-.
-input content
-.
-expected output content
-.
-
-[name2] description
-.
-input content
-.
-expected output content
-.
-```
 
 `yaml` format:
 ```yaml
@@ -37,6 +21,23 @@ name2:
     input content
   expected: |-
     expected output content
+```
+
+`dot` format (default):
+```
+[name1] optional description
+.
+input content
+.
+expected output content
+.
+
+[name2] optional description
+.
+input content
+.
+expected output content
+.
 ```
 
 Then, use the `param_file` pytest marker to create a parametrized test:
@@ -102,11 +103,7 @@ $ pip install -e .
 
 ## Regenerating expected output on failures
 
-Running pytest with the `--regen-file-failure` option will regenerate the parameter file with actual output, if any test fails.
-
-## Other formats
-
-TODO ...
+Running pytest with the `--regen-file-failure` option will regenerate the parameter file with actual outputs of `assert_expected`, if any test fails.
 
 [pypi-badge]: https://img.shields.io/pypi/v/pytest_param_files.svg
 [pypi-link]: https://pypi.org/project/pytest_param_files
