@@ -1,8 +1,10 @@
 name1:
   description: description
   content: Something
-  expected: Other
+  expected: >-
+    Other
 name2:
   description: description
   content: Something
+  # comment
   expected: Other

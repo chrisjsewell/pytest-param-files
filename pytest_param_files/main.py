@@ -1,14 +1,14 @@
 """Main module"""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 import difflib
 from pathlib import Path
 import re
 import traceback
 from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Literal, cast
 
-import yaml
+from ruamel.yaml import YAML, MappingNode, Node
 
 if TYPE_CHECKING:
     from _pytest.python import Metafunc
@@ -63,6 +63,8 @@ class ParamTestData:
     """The index of the test in the file."""
     fmt: FormatAbstract
     """The format of the source file."""
+    extra: dict[str, Any] = field(default_factory=dict)
+    """Additional data for the test."""
 
     def assert_expected(self, actual: Any, **kwargs: Any) -> None:
         """Assert the actual result of the test.
@@ -264,12 +266,13 @@ class YamlFormat(FormatAbstract):
         :return: List of test data.
         """
         text = self.path.read_text(encoding=self.encoding)
-        node = yaml.compose(text, yaml.SafeLoader)
-        if not isinstance(node, yaml.MappingNode):
+        yaml = YAML(typ="safe")
+        node = yaml.compose(text)
+        if not isinstance(node, MappingNode):
             raise TypeError(f"Expected sequence, got {type(node)}")
-        data: dict = yaml.safe_load(text)
+        data: dict = YAML(typ="safe").load(text)
         assert len(node.value) == len(data), "YAML node count mismatch"
-        title_node: yaml.Node
+        title_node: Node
         for index, ((title_node, _), (title, item)) in enumerate(
             zip(node.value, data.items())
         ):
@@ -289,6 +292,7 @@ class YamlFormat(FormatAbstract):
                 item["expected"],
                 fmt=self,
                 index=index,
+                extra=item,
             )
 
     def assert_expected(
@@ -325,14 +329,10 @@ class YamlFormat(FormatAbstract):
 
     def regen_file(self, data: ParamTestData, actual: Any, **kwargs: Any) -> None:
         """Regenerate the fixture file."""
-        # TODO ideally here we would maintain comments and formatting
-        # perhaps using ruamel.yaml, although that is a pain
-        new = yaml.safe_load(self.path.read_text(encoding=self.encoding))
+        new = YAML(typ="rt").load(self.path.read_text(encoding=self.encoding))
         new[data.title]["expected"] = actual
-        text = yaml.dump(
-            new, Dumper=CustomDumper, default_flow_style=False, sort_keys=False
-        )
-        self.path.write_text(text, encoding=self.encoding)
+        with self.path.open("w", encoding=self.encoding) as handle:
+            YAML(typ="rt").dump(new, handle)
 
 
 def assert_expected_strings(
@@ -384,18 +384,18 @@ def diff_strings(actual: str, expected: str, path: Path, line: int) -> str:
         )
 
 
-class CustomDumper(yaml.SafeDumper):
-    """Custom YAML dumper."""
+# class CustomDumper(yaml.SafeDumper):
+#     """Custom YAML dumper."""
 
-    def represent_scalar(self, tag, value, style=None):
-        if style is None:
-            # be a bit more clever about the string style,
-            # to get a more readable output
-            if "\n" in value:
-                style = "|"
-            elif len(value) > 80:
-                style = ">"
-        node = yaml.ScalarNode(tag, value, style=style)
-        if self.alias_key is not None:
-            self.represented_objects[self.alias_key] = node
-        return node
+#     def represent_scalar(self, tag, value, style=None):
+#         if style is None:
+#             # be a bit more clever about the string style,
+#             # to get a more readable output
+#             if "\n" in value:
+#                 style = "|"
+#             elif len(value) > 80:
+#                 style = ">"
+#         node = yaml.ScalarNode(tag, value, style=style)
+#         if self.alias_key is not None:
+#             self.represented_objects[self.alias_key] = node
+#         return node

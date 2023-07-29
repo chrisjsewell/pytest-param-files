@@ -104,8 +104,6 @@ $ pip install -e .
 
 Running pytest with the `--regen-file-failure` option will regenerate the parameter file with actual output, if any test fails.
 
-Note, currently regeneration of YAML files may not provide the same formatting as the original file, and will not preserve comments.
-
 ## Other formats
 
 TODO ...

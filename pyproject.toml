@@ -19,7 +19,7 @@ classifiers = [
 ]
 keywords = ["pytest", "parameterized"]
 requires-python = ">=3.8"
-dependencies = ["pytest", "pyyaml"]
+dependencies = ["pytest", "ruamel.yaml>=0.15"]
 
 [project.urls]
 Home = "https://github.com/chrisjsewell/pytest-param-files"
